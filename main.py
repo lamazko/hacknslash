@@ -135,25 +135,35 @@ class Enemy(Character):
 
 	def shoot(self):
 		if self.cooldown == 0:
-			projo = Projos(self.x - self.get_width()//4,self.y,self.attack_img)
+			projo = Projos(self.x - self.get_width()//4,self.y,self.attack_img,"DOWN")
 			self.attack.append(projo)
 			self.cooldown = 1
 
 
 
 class Projos:
-	def __init__(self,x,y,img):
+	DIRECTION = {"UP": (0,-1),
+				"DOWN": (0,1),
+				"LEFT": (-1,0),
+				"RIGHT": (1,0)
+				}	
+
+
+
+	def __init__(self,x,y,img,direction="UP"):
 		self.x = x 
 		self.y = y 
 		self.img = img 
 		self.mask = pygame.mask.from_surface(self.img)
-
+		self.direction = self.DIRECTION[direction]
 	def draw(self,window):
 		window.blit(self.img,(self.x , self.y))
 
 
 	def move(self,velocity):
-		self.y += velocity 
+		#self.y = self.y + (self.direction[1] * velocity)
+		#self.x = self.x + (self.direction[0] * velocity)
+		self.x,self.y = self.x + (self.direction[0] * velocity), self.y  + (self.direction[1] * velocity)
 
 
 	def off_screen(self,height):
@@ -268,7 +278,7 @@ def main():
 
 
 
-		perso.move_projo(-projo_velocity,enemies)
+		perso.move_projo(projo_velocity,enemies)
 
 
 
@@ -290,5 +300,5 @@ def main_menu():
 	pygame.quit()
 		
 
-
-main_menu()
+if __name__ == '__main__':
+	main_menu()
