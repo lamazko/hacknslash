@@ -17,13 +17,13 @@ BG = pygame.transform.scale(pygame.image.load(os.path.join("images","grass.jpg")
 
 #Player
 
-PLAYER = pygame.image.load(os.path.join("images","pixel_ship_yellow.png"))
+PLAYER = pygame.image.load(os.path.join("images","luma.png"))
 
 #Monsters
 
-ENEMY_red = pygame.image.load(os.path.join("images","pixel_ship_red_small.png"))
-ENEMY_green = pygame.image.load(os.path.join("images","pixel_ship_green_small.png"))
-ENEMY_blue = pygame.image.load(os.path.join("images","pixel_ship_blue_small.png"))
+ENEMY_red = pygame.image.load(os.path.join("images","sorn.png"))
+ENEMY_green = pygame.image.load(os.path.join("images","bburns.png"))
+ENEMY_blue = pygame.image.load(os.path.join("images","crvor.png"))
 
 #Projos
 
@@ -33,6 +33,8 @@ BLUE_LASER = pygame.image.load(os.path.join("images","pixel_laser_blue.png"))
 YELLOW_LASER = pygame.image.load(os.path.join("images","pixel_laser_yellow.png"))
 
 class Character:
+	COOLDOWN = 5
+
 	def __init__(self,x,y,health=100):
 		self.x = x
 		self.y = y
@@ -46,12 +48,37 @@ class Character:
 		#pygame.draw.rect(fenetre,couleur,(positionx, positiony, largeur,longueur),opacité)
 		#pygame.draw.rect(window,(255,0,0),(self.x,self.y, 50,50),0)
 		window.blit(self.char_img,(self.x,self.y))
+		for att in self.attack:
+			att.draw(window)
+
+#generique, utilisé pour les enemies
+	def move_projo(self,velocity,obj):
+		self.cooldown_c()
+		for att in self.attack:
+			att.move(velocity)
+			if att.off_screen(HEIGHT):
+				self.attack.remove(att)
+			elif att.collision(obj):
+				obj.health -= 10
+				self.attack.remove(att)
 
 	def get_width(self):
 		return self.char_img.get_width()
 
 	def get_height(self):
 		return self.char_img.get_height()
+
+	def shoot(self):
+		if self.cooldown == 0:
+			projo = Projos(self.x -self.get_width(),self.y - self.get_height(),self.attack_img)
+			self.attack.append(projo)
+			self.cooldown = 1
+
+	def cooldown_c(self):
+		if self.cooldown >= self.COOLDOWN:
+			self.cooldown = 0
+		elif self.cooldown > 0:
+			self.cooldown += 1
 
 
 class Player(Character):
@@ -62,6 +89,32 @@ class Player(Character):
 		# recupere la hitbox exacte au lieu d'un carré
 		self.mask = pygame.mask.from_surface(self.char_img)
 		self.max_health = health
+
+
+#projos pour le perso principal
+	def move_projo(self,velocity,objs):
+		self.cooldown_c()
+		for att in self.attack.copy():
+			att.move(velocity)
+			if att.off_screen(HEIGHT):
+				self.attack.remove(att)
+			else:
+				for obj in objs: 
+					if att.collision(obj):
+						obj.health -= 10
+						objs.remove(obj)
+						if att in self.attack:
+							self.attack.remove(att)
+
+
+	def draw(self,window):
+		super().draw(window)
+		self.healthbar(window)
+
+	def healthbar(self,window):
+		pygame.draw.rect(window,(255,0,0),(self.x,self.y + self.char_img.get_height()+ 10, self.char_img.get_width(),10) )
+		pygame.draw.rect(window,(0,255,0),(self.x,self.y + self.char_img.get_height()+ 10, self.char_img.get_width() * self.health // self.max_health ,10) )
+
 
 
 class Enemy(Character):
@@ -78,6 +131,13 @@ class Enemy(Character):
 #move que pour space invaders
 	def move(self,velocity):
 		self.y += velocity
+
+
+	def shoot(self):
+		if self.cooldown == 0:
+			projo = Projos(self.x - self.get_width()//4,self.y,self.attack_img)
+			self.attack.append(projo)
+			self.cooldown = 1
 
 
 
@@ -97,10 +157,10 @@ class Projos:
 
 
 	def off_screen(self,height):
-		return self.y <= height and self.y >= 0
+		return self.y >= height or self.y <= 0
 
 	def collision(self,obj):
-		return collide(obj,self)
+		return collide(self,obj)
 
 
 def collide(obj1,obj2):
@@ -115,8 +175,9 @@ def main():
 	FPS = 60
 	level = 0
 	lives = 20
-	player_velocity = 5
-	enemy_velocity = 5
+	player_velocity = 8
+	enemy_velocity = 3
+	projo_velocity = 10
 	#choisi notre fonts)
 	main_font = pygame.font.SysFont("comicsans",50)
 	loss_font = pygame.font.SysFont("comicsans",60)
@@ -176,7 +237,7 @@ def main():
 
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
-				run = False
+				quit()
 
 		keys = pygame.key.get_pressed()
 		if (keys[pygame.K_q] or keys[pygame.K_LEFT]) and perso.x - player_velocity > 0: #left
@@ -187,14 +248,47 @@ def main():
 			perso.y -= player_velocity
 		if (keys[pygame.K_s] or keys[pygame.K_DOWN]) and perso.y + player_velocity + perso.get_height() < HEIGHT: #down
 			perso.y += player_velocity
+		if (keys[pygame.K_SPACE]):
+			perso.shoot()
 
 		for enemy in enemies.copy():
 			enemy.move(enemy_velocity)
-			if enemy.y + enemy.get_height()> HEIGHT:
+			enemy.move_projo(projo_velocity,perso)
+
+			if random.randrange(0,FPS*4) == 1:
+				enemy.shoot()
+
+			if collide(enemy,perso):
+				perso.health -= 10
+				enemies.remove(enemy)
+
+			elif enemy.y + enemy.get_height()> HEIGHT:
 				lives -= 1
 				enemies.remove(enemy)
 
 
 
+		perso.move_projo(-projo_velocity,enemies)
+
+
+
+
+def main_menu():
+	run = True
+	while run:
+		title_font = pygame.font.SysFont("comicsans",70)
+		FENETRE.blit(BG,(0,0))
+		title_label = title_font.render("press the mouse to begin",1,(255,0,0))
+		FENETRE.blit(title_label,(WIDTH/2 - title_label.get_width()/2, 350))
+		pygame.display.update()
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				run = False
+			if event.type == pygame.MOUSEBUTTONDOWN:
+				main()
+
+	pygame.quit()
 		
-main()
+
+
+main_menu()
